@@ -49,7 +49,7 @@ python3.6 metadata.py ami-id
 ```hcl
 python3.6 metadata.py public-ipv4
 ```
-![alt text](https://github.com/rahulraj2323/kpmg_coding_challenge/blob/master/Question-2/Capture.PNG)
+![alt text](https://github.com/rahulraj2323/coding-challenge/blob/master/Question-2/Capture.PNG)
 ## Author
 - [Rahul Raj](https://github.com/rahulraj2323)
 

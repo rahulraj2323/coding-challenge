@@ -22,6 +22,6 @@ Basic usage of this module is as follows:
 
 ```
 
-![alt text](https://github.com/rahulraj2323/kpmg_coding_challenge/blob/master/Question-3/Capture.PNG)
+![alt text](https://github.com/rahulraj2323/coding-challenge/blob/master/Question-3/Capture.PNG)
 ## Author
 - [Rahul Raj](https://github.com/rahulraj2323)
