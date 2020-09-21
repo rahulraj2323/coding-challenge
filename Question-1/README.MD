@@ -16,7 +16,7 @@ This module creates a 3-tier environment using AWS CloudFormation Nested Stack.
 Basic usage of this module is as follows:
 
 ```hcl
-aws cloudformation deploy --stack-name kpmg-online-test-stack --template-file ./master-template.yaml --parameter-overrides EnvironmentName=dev EC2Tenancy=default'
+aws cloudformation deploy --stack-name kpmg-online-test-stack --template-file ./master-template.yaml --parameter-overrides EnvironmentName=dev EC2Tenancy=default
 ```
 ## Author
 - [Rahul Raj](https://github.com/rahulraj2323)
