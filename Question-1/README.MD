@@ -6,7 +6,7 @@ This module creates a 3-tier environment using AWS CloudFormation Nested Stack.
 ## PRE-REQUISITES
 
 - Upload 3-tier-vpc-set-up.yml, alb-set-up.yml and master-template.yml to any s3 bucket.
-- Update the new template location(s3 url of 3-tier-vpc-set-up.yml and alb-set-up.yml) for VPCStack and PortalStack.
+- Update the new template location(s3 url of 3-tier-vpc-set-up.yml and alb-set-up.yml) into master-template.yml for VPCStack and PortalStack.
 - Execute the master-template.yml
 
 ## Architecture
