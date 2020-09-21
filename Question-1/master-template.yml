@@ -1,0 +1,102 @@
+#This CFT will build a three-tier cloud infrastructure: Elastic Compute Cloud (EC2),
+#Auto Scaling Group, Virtual Private Cloud(VPC), Elastic Load Balancer (ELB), Security Groups and
+#the Internet Gateway.
+AWSTemplateFormatVersion: "2010-09-09"
+Metadata:
+  Author: Rahul Raj
+Parameters:
+  EnvironmentName:
+    Description: Enter the desired name of the environment.
+    Type: String
+  NameoftheVPC:
+    Type: String
+    Description: Enter the name of the environment VPC.
+    Default: KPMG
+  OverallVPCRange:
+    Type: String
+    Description: Enter CIDR range for VPC.
+    Default: 10.0.0.0/16
+  PublicSubnet01IP:
+    Type: String
+    Description: Enter CIDR range for Public-subnet 01.
+    Default: 10.0.1.0/24
+  PublicSubnet02IP:
+    Type: String
+    Description: Enter CIDR range for Public-subnet 02.
+    Default:  10.0.2.0/24
+  PrivateSubnet03IP:
+    Type: String
+    Description: Enter CIDR range for Private-subnet 03.
+    Default: 10.0.3.0/24
+  PrivateSubnet04IP:
+    Type: String
+    Description: Enter CIDR range for Private-subnet 04.
+    Default: 10.0.4.0/24
+  EC2Tenancy:
+    Description: Please enter The allowed tenancy of instances launched into the VPC.
+    Type: String
+    AllowedValues:
+    - 'default'
+    - 'dedicated'
+  InstanceType:
+    Description: Amazon EC2 instance type for the instances
+    Type: String
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Default: t3.micro
+
+#Nested Stack to deploy the whole 3-tier architecture in one click.
+Resources:
+  VPCStack:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      Parameters:
+        EnvironmentName:
+          Ref: EnvironmentName
+        NameoftheVPC:
+          Ref: NameoftheVPC
+        OverallVPCRange:
+          Ref: OverallVPCRange
+        PublicSubnet01IP:
+          Ref: PublicSubnet01IP
+        PublicSubnet02IP:
+          Ref: PublicSubnet02IP
+        PrivateSubnet03IP:
+          Ref: PrivateSubnet03IP
+        PrivateSubnet04IP:
+          Ref: PrivateSubnet04IP
+        EC2Tenancy:
+          Ref: EC2Tenancy
+      TemplateURL: 'https://kpmg-test-stack.s3.amazonaws.com/3-tier-vpc-set-up.yml'
+  PortalStack:
+    Type: 'AWS::CloudFormation::Stack'
+    DependsOn: VPCStack
+    Properties:
+      Parameters:
+        EnvironmentName:
+          Ref: EnvironmentName
+        VPC:
+          Fn::GetAtt:
+            - VPCStack
+            - Outputs.VPC
+        PublicSubnet01:
+          Fn::GetAtt:
+            - VPCStack
+            - Outputs.PublicSubnet1
+        PublicSubnet02:
+          Fn::GetAtt:
+            - VPCStack
+            - Outputs.PublicSubnet2
+        PrivateSubnet03:
+          Fn::GetAtt:
+            - VPCStack
+            - Outputs.PrivateSubnet1
+        PrivateSubnet04:
+          Fn::GetAtt:
+            - VPCStack
+            - Outputs.PrivateSubnet2
+        InstanceType:
+          Ref: InstanceType
+      TemplateURL: 'https://kpmg-test-stack.s3.amazonaws.com/alb-set-up.yml'

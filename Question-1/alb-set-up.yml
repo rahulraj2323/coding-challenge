@@ -1,0 +1,265 @@
+#This CFT will create an Application Load Balancer.
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'Template for Application Load Balancer'
+Metadata:
+  Author: Rahul Raj
+Parameters:
+# Parameters for ALB:
+  EnvironmentName:
+    Description: Enter the desired name of the environment.
+    Type: String
+  VPC:
+    Description: Enter the VPC.
+    Type: String
+  PublicSubnet01:
+    Description: Enter the Public Subnet 01 name for ALB (Internet Facing).
+    Type: String
+  PublicSubnet02:
+    Description: Enter the Public Subnet 02 name for ALB (Internet Facing).
+    Type: String
+  PrivateSubnet03:
+    Description: Enter the Private Subnet 03 name for ALB (Internal Facing).
+    Type: String
+  PrivateSubnet04:
+    Description: Enter the Private Subnet 04 name for ALB (Internal Facing).
+    Type: String
+  InstanceType:
+    Description: Amazon EC2 instance type for the instances
+    Type: String
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Default: t3.micro
+
+Mappings:
+  RegionToAmazonAMI:
+    us-east-1:
+      HVM64: ami-09479453c5cde9639
+    us-east-2:
+      HVM64: ami-023c8dbf8268fb3ca
+    us-west-1:
+      HVM64: ami-06ff511fea5db2c99
+    us-west-2:
+      HVM64: ami-0bb5806b2e825a199
+
+Resources:
+  #Launch Configuration's Security Group
+  LaunchConfigSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Custom port 3000'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  #Launch Configuration for EC2 instance used for Auto-scaling
+  LaunchConfig:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+          - RegionToAmazonAMI
+          - Ref: 'AWS::Region'
+          - HVM64
+      SecurityGroups:
+        - Ref: "LaunchConfigSG"
+      InstanceType:
+        Ref: "InstanceType"
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 30
+            VolumeType: "gp2"
+        - DeviceName: /dev/sdm
+          Ebs:
+            VolumeSize: 100
+            DeleteOnTermination: "false"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          cd /tmp
+          yum update -y
+          yum install -y httpd24
+          echo "KPMG Online Test Passed!!!" > /var/www/html/index.html
+          service httpd start
+          /opt/aws/bin/cfn-signal \
+            -e $? \
+            --stack ${AWS::StackName} \
+            --resource AmazonLinuxInstance \
+            --region ${AWS::Region}
+
+  AutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      MinSize: '0'
+      MaxSize: '4'
+      DesiredCapacity: '2'
+      LaunchConfigurationName: !Ref LaunchConfig
+      VPCZoneIdentifier:
+        - Ref: PrivateSubnet03
+        - Ref: PrivateSubnet04
+      TargetGroupARNs:
+        - !Ref EC2TargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+
+  IncreaseSzieASGPolicy:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+
+  DecreaseSzieASGPolicy:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
+
+  CPUAlarmHigh:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Scale-up if CPU > 90% for 10 minutes
+      AlarmActions:
+        - !Ref IncreaseSzieASGPolicy
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: AutoScalingGroup
+      EvaluationPeriods: 2
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Period: 300
+      Statistic: Average
+      Threshold: 90
+
+  CPUAlarmLow:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Scale-up if CPU < 70% for 10 minutes
+      AlarmActions:
+        - !Ref DecreaseSzieASGPolicy
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: AutoScalingGroup
+      EvaluationPeriods: 2
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Period: 300
+      Statistic: Average
+      Threshold: 70
+
+  # ELB Security Group allowing Port 80 and 443 from anywhere
+  ELBSecurityGroupExt:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Port 443 and Port 80'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  ELBSecurityGroupInt:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Custom port 3000'
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+  #Target Group
+  EC2TargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: Front-End-TG
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 5
+      Matcher:
+        HttpCode: '200'
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      UnhealthyThresholdCount: 3
+      VpcId:
+        Ref: 'VPC'
+      Tags:
+        - Key: Name
+          Value: EC2TargetGroup
+        - Key: Port
+          Value: 80
+  #ELB (ALB)
+  ALBListener80:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: EC2TargetGroup
+      LoadBalancerArn:
+        Ref: ApplicationLoadBalancerExt
+      Port: 80
+      Protocol: HTTP
+  #Enable this when you have ssl certificate
+#  ALBListener443:
+#    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+#    Properties:
+#      DefaultActions:
+#        - Type: forward
+#          TargetGroupArn:
+#            Ref: EC2TargetGroup
+#      LoadBalancerArn:
+#        Ref: ApplicationLoadBalancerExt
+#      Port: 443
+#      Protocol: HTTPS
+  ApplicationLoadBalancerExt:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name: !Sub '${EnvironmentName}-KPMG-ALB-Ext'
+      Scheme: internet-facing # or internal
+      IpAddressType: ipv4
+      Subnets:
+        - Ref: PublicSubnet01
+        - Ref: PublicSubnet02
+      SecurityGroups:
+        - Ref: ELBSecurityGroupExt
+      Tags:
+        - Key: Name
+          Value: InternetFacing-ALB
+  ApplicationLoadBalancerInt:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name: !Sub '${EnvironmentName}-KPMG-ALB-Int'
+      Scheme: internal # or internet-facing
+      IpAddressType: ipv4
+      Subnets:
+        - Ref: PrivateSubnet03
+        - Ref: PrivateSubnet04
+      SecurityGroups:
+        - Ref: ELBSecurityGroupInt
+      Tags:
+        - Key: Name
+          Value: InternalFacing-ALB
+Outputs:
+  ALB:
+    Description: A reference to the created ALB DNS
+    Value: !GetAtt ApplicationLoadBalancerExt.DNSName
