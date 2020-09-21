@@ -1,4 +1,4 @@
-# KPMG Online Challenge
+#  Online Challenge
 ## Solution for question-2
 
 This python module makes it easy to query the meta data of an instance within AWS and provide a json formatted output.

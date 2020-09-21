@@ -1,4 +1,4 @@
-# KPMG Online Challenge
+#  Online Challenge
 ## Solution for question-1
 
 This module creates a 3-tier environment using AWS CloudFormation Nested Stack.
